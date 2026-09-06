@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -40,7 +41,8 @@ public class LeaveRequestService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
         int days = calculateDays(dto);
 
-        if (dto.getType() == LeaveType.VACATION && usedVacationDays(dto.getEmployeeId()) + days > employee.getAnnualQuota()) {
+        if (dto.getType() == LeaveType.VACATION
+                && usedVacationDays(dto.getEmployeeId(), dto.getStartDate()) + days > employee.getAnnualQuota()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough vacation balance");
         }
 
@@ -67,7 +69,7 @@ public class LeaveRequestService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
 
         if (request.getType() == LeaveType.VACATION) {
-            if (usedVacationDays(request.getEmployeeId()) + request.getDays() > employee.getAnnualQuota()) {
+            if (usedVacationDays(request.getEmployeeId(), request.getStartDate()) + request.getDays() > employee.getAnnualQuota()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough vacation balance");
             }
         }
@@ -80,9 +82,12 @@ public class LeaveRequestService {
         return (int) ChronoUnit.DAYS.between(dto.getStartDate(), dto.getEndDate()) + 1;
     }
 
-    private int usedVacationDays(Long employeeId) {
+    private int usedVacationDays(Long employeeId, LocalDate requestDate) {
+        LocalDate firstDay = requestDate.withDayOfYear(1);
+        LocalDate lastDay = requestDate.withDayOfYear(requestDate.lengthOfYear());
         return leaveRequests
-                .findByEmployeeIdAndTypeAndStatus(employeeId, LeaveType.VACATION, LeaveStatus.APPROVED)
+                .findByEmployeeIdAndTypeAndStatusAndStartDateBetween(
+                        employeeId, LeaveType.VACATION, LeaveStatus.APPROVED, firstDay, lastDay)
                 .stream()
                 .mapToInt(LeaveRequest::getDays)
                 .sum();

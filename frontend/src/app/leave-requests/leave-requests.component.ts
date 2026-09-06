@@ -23,6 +23,7 @@ export class LeaveRequestsComponent implements OnInit {
   requests: LeaveRequest[] = [];
   employees: Employee[] = [];
   loading = false;
+  loadError = '';
   submitting = false;
   formMessage = '';
   formError = '';
@@ -49,13 +50,17 @@ export class LeaveRequestsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loading = true;
+    this.loadError = '';
     forkJoin({
       requests: this.leaveRequests.getRequests(),
       employees: this.leaveRequests.getEmployees()
     }).pipe(finalize(() => this.loading = false))
-      .subscribe(({ requests, employees }) => {
-        this.requests = requests;
-        this.employees = employees;
+      .subscribe({
+        next: ({ requests, employees }) => {
+          this.requests = requests;
+          this.employees = employees;
+        },
+        error: () => this.loadError = 'Could not load data.'
       });
   }
 

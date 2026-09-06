@@ -50,8 +50,9 @@
 <p class="error" *ngIf="formError">{{ formError }}</p>
 
 <div *ngIf="loading">Loading...</div>
+<p class="error" *ngIf="loadError">{{ loadError }}</p>
 
-<table *ngIf="!loading">
+<table *ngIf="!loading && !loadError">
   <thead>
     <tr>
       <th>#</th>
@@ -69,8 +70,8 @@
       <td>{{ r.id }}</td>
       <td>{{ r.employee?.name }}</td>
       <td>{{ typeLabel(r.type) }}</td>
-      <td>{{ r.startDate | date: 'dd/MM/yyyy' }}</td>
-      <td>{{ r.endDate | date: 'dd/MM/yyyy' }}</td>
+      <td>{{ r.startDate | date: 'dd/MM/yyyy': 'UTC' }}</td>
+      <td>{{ r.endDate | date: 'dd/MM/yyyy': 'UTC' }}</td>
       <td>{{ r.days }}</td>
       <td>{{ statusLabel(r.status) }}</td>
       <td>

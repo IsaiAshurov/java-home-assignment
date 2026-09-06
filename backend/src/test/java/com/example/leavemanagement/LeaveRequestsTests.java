@@ -120,6 +120,28 @@ class LeaveRequestsTests {
     }
 
     @Test
+    void create_PreviousYearVacation_DoesNotReduceCurrentYearQuota() {
+        Employee emp = saveEmployee("New Annual Balance", 20);
+
+        LeaveRequest previousYear = new LeaveRequest();
+        previousYear.setEmployeeId(emp.getId());
+        previousYear.setType(LeaveType.VACATION);
+        previousYear.setStartDate(LocalDate.of(2025, 1, 1));
+        previousYear.setEndDate(LocalDate.of(2025, 1, 20));
+        previousYear.setDays(20);
+        previousYear.setStatus(LeaveStatus.APPROVED);
+        leaveRequests.save(previousYear);
+
+        CreateLeaveRequestDto dto = new CreateLeaveRequestDto();
+        dto.setEmployeeId(emp.getId());
+        dto.setType(LeaveType.VACATION);
+        dto.setStartDate(LocalDate.of(2026, 1, 1));
+        dto.setEndDate(LocalDate.of(2026, 1, 20));
+
+        assertDoesNotThrow(() -> leaveRequestService.create(dto));
+    }
+
+    @Test
     void approve_PendingRequest_Succeeds() throws Exception {
         Employee emp = new Employee();
         emp.setName("Approver Test");
@@ -151,6 +173,15 @@ class LeaveRequestsTests {
     void approve_AlreadyProcessedRequest_ReturnsConflict() throws Exception {
         Employee emp = saveEmployee("Processed Request", 20);
         LeaveRequest request = saveRequest(emp, 2, LeaveStatus.APPROVED);
+
+        mockMvc.perform(post("/api/leave-requests/{id}/approve", request.getId()))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void approve_RejectedRequest_ReturnsConflict() throws Exception {
+        Employee emp = saveEmployee("Rejected Request", 20);
+        LeaveRequest request = saveRequest(emp, 2, LeaveStatus.REJECTED);
 
         mockMvc.perform(post("/api/leave-requests/{id}/approve", request.getId()))
                 .andExpect(status().isConflict());
@@ -199,7 +230,7 @@ class LeaveRequestsTests {
     @Test
     void approve_ConcurrentRequests_DoesNotExceedQuota() throws Exception {
         Employee emp = saveEmployee("Concurrent Approvals", 20);
-        saveRequest(emp, 18, LeaveStatus.APPROVED);
+        LeaveRequest alreadyApproved = saveRequest(emp, 18, LeaveStatus.APPROVED);
         LeaveRequest first = saveRequest(emp, 2, LeaveStatus.PENDING);
         LeaveRequest second = saveRequest(emp, 2, LeaveStatus.PENDING);
 
@@ -213,6 +244,13 @@ class LeaveRequestsTests {
             List<Integer> statuses = List.of(firstStatus.get(), secondStatus.get());
             assertEquals(1, statuses.stream().filter(status -> status == 200).count());
             assertEquals(1, statuses.stream().filter(status -> status == 400).count());
+
+            int usedDays = List.of(alreadyApproved, first, second).stream()
+                    .map(request -> leaveRequests.findById(request.getId()).orElseThrow())
+                    .filter(request -> request.getStatus() == LeaveStatus.APPROVED)
+                    .mapToInt(LeaveRequest::getDays)
+                    .sum();
+            assertEquals(20, usedDays);
         } finally {
             executor.shutdownNow();
         }

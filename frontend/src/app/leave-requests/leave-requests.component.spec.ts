@@ -36,6 +36,18 @@ describe('LeaveRequestsComponent', () => {
     expect(component.form.hasError('dateRange')).toBeTrue();
   });
 
+  it('shows an error when initial loading fails', () => {
+    const failedFixture = TestBed.createComponent(LeaveRequestsComponent);
+    failedFixture.detectChanges();
+
+    http.expectOne('http://localhost:5080/api/employees').flush([]);
+    http.expectOne('http://localhost:5080/api/leave-requests')
+      .flush('Server error', { status: 500, statusText: 'Server Error' });
+    failedFixture.detectChanges();
+
+    expect(failedFixture.nativeElement.textContent).toContain('Could not load data.');
+  });
+
   it('submits a valid leave request', () => {
     component.form.setValue({
       employeeId: 2,
