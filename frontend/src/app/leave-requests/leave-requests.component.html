@@ -1,6 +1,53 @@
 <h2>Leave Requests</h2>
 
-<!-- TODO (candidate): add the "new request" form here, with validation. -->
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <label>
+    Employee
+    <select formControlName="employeeId">
+      <option [ngValue]="null">Select employee</option>
+      <option *ngFor="let employee of employees" [ngValue]="employee.id">{{ employee.name }}</option>
+    </select>
+  </label>
+  <small *ngIf="form.controls.employeeId.touched && form.controls.employeeId.hasError('required')">
+    Employee is required.
+  </small>
+
+  <label>
+    Leave type
+    <select formControlName="type">
+      <option [ngValue]="null">Select leave type</option>
+      <option *ngFor="let type of leaveTypes" [ngValue]="type.value">{{ type.label }}</option>
+    </select>
+  </label>
+  <small *ngIf="form.controls.type.touched && form.controls.type.hasError('required')">
+    Leave type is required.
+  </small>
+
+  <label>
+    Start date
+    <input type="date" formControlName="startDate">
+  </label>
+  <small *ngIf="form.controls.startDate.touched && form.controls.startDate.hasError('required')">
+    Start date is required.
+  </small>
+
+  <label>
+    End date
+    <input type="date" formControlName="endDate">
+  </label>
+  <small *ngIf="form.controls.endDate.touched && form.controls.endDate.hasError('required')">
+    End date is required.
+  </small>
+
+  <small *ngIf="form.hasError('dateRange') && (form.controls.startDate.touched || form.controls.endDate.touched)">
+    End date cannot be before start date.
+  </small>
+
+  <button type="submit" [disabled]="submitting">{{ submitting ? 'Submitting...' : 'Create request' }}</button>
+</form>
+
+<p class="success" *ngIf="formMessage">{{ formMessage }}</p>
+<p class="error" *ngIf="formError">{{ formError }}</p>
 
 <div *ngIf="loading">Loading...</div>
 
