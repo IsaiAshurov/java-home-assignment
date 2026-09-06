@@ -1,9 +1,10 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { finalize } from 'rxjs';
-import { Employee, LeaveRequest } from '../models/leave-request.model';
+import { finalize, forkJoin } from 'rxjs';
+import { CreateLeaveRequest, Employee, LeaveRequest, LeaveStatus, LeaveType } from '../models/leave-request.model';
+import { LeaveRequestsService } from '../services/leave-requests.service';
 
 function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
   const start = control.get('startDate')?.value;
@@ -11,8 +12,6 @@ function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
   return start && end && start > end ? { dateRange: true } : null;
 }
 
-// NOTE: This component was written quickly for a POC.
-// It talks to the API directly, manages state by hand and uses `any` everywhere.
 @Component({
   selector: 'app-leave-requests',
   standalone: true,
@@ -31,36 +30,33 @@ export class LeaveRequestsComponent implements OnInit {
   readonly approvalMessages: Record<number, string> = {};
   readonly approvalErrors: Record<number, string> = {};
 
-  private apiUrl = 'http://localhost:5080/api/leave-requests';
   private readonly fb = inject(FormBuilder);
 
   readonly leaveTypes = [
-    { value: 0, label: 'Vacation' },
-    { value: 1, label: 'Sick' },
-    { value: 2, label: 'Unpaid' }
+    { value: LeaveType.Vacation, label: 'Vacation' },
+    { value: LeaveType.Sick, label: 'Sick' },
+    { value: LeaveType.Unpaid, label: 'Unpaid' }
   ];
 
   readonly form = this.fb.group({
     employeeId: this.fb.control<number | null>(null, Validators.required),
-    type: this.fb.control<number | null>(null, Validators.required),
+    type: this.fb.control<LeaveType | null>(null, Validators.required),
     startDate: this.fb.control('', Validators.required),
     endDate: this.fb.control('', Validators.required)
   }, { validators: dateRangeValidator });
 
-  constructor(private http: HttpClient) {}
+  constructor(private leaveRequests: LeaveRequestsService) {}
 
   ngOnInit(): void {
-    this.load();
-    this.http.get<Employee[]>('http://localhost:5080/api/employees')
-      .subscribe((employees) => this.employees = employees);
-  }
-
-  load(): void {
     this.loading = true;
-    this.http.get<LeaveRequest[]>(this.apiUrl).subscribe((data) => {
-      this.requests = data;
-      this.loading = false;
-    });
+    forkJoin({
+      requests: this.leaveRequests.getRequests(),
+      employees: this.leaveRequests.getEmployees()
+    }).pipe(finalize(() => this.loading = false))
+      .subscribe(({ requests, employees }) => {
+        this.requests = requests;
+        this.employees = employees;
+      });
   }
 
   submit(): void {
@@ -73,7 +69,7 @@ export class LeaveRequestsComponent implements OnInit {
     this.formMessage = '';
     this.formError = '';
 
-    this.http.post<LeaveRequest>(this.apiUrl, this.form.getRawValue()).subscribe({
+    this.leaveRequests.createRequest(this.form.getRawValue() as CreateLeaveRequest).subscribe({
       next: (request) => {
         request.employee = this.employees.find((employee) => employee.id === request.employeeId);
         this.requests.unshift(request);
@@ -96,7 +92,7 @@ export class LeaveRequestsComponent implements OnInit {
     delete this.approvalMessages[id];
     delete this.approvalErrors[id];
 
-    this.http.post<LeaveRequest>(`${this.apiUrl}/${id}/approve`, {})
+    this.leaveRequests.approveRequest(id)
       .pipe(finalize(() => this.approvingIds.delete(id)))
       .subscribe({
         next: (approved) => {
@@ -119,15 +115,15 @@ export class LeaveRequestsComponent implements OnInit {
     return 'Please try again.';
   }
 
-  typeLabel(type: number): string {
-    if (type == 0) return 'Vacation';
-    if (type == 1) return 'Sick';
+  typeLabel(type: LeaveType): string {
+    if (type === LeaveType.Vacation) return 'Vacation';
+    if (type === LeaveType.Sick) return 'Sick';
     return 'Unpaid';
   }
 
-  statusLabel(status: number): string {
-    if (status == 0) return 'Pending';
-    if (status == 1) return 'Approved';
+  statusLabel(status: LeaveStatus): string {
+    if (status === LeaveStatus.Pending) return 'Pending';
+    if (status === LeaveStatus.Approved) return 'Approved';
     return 'Rejected';
   }
 }
