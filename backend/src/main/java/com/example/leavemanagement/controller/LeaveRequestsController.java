@@ -9,8 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-// NOTE: This controller was written quickly for a POC.
-// It does data access, business logic and validation all in one place.
 @RestController
 @RequestMapping("/api/leave-requests")
 public class LeaveRequestsController {

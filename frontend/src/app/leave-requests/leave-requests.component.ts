@@ -9,7 +9,9 @@ import { LeaveRequestsService } from '../services/leave-requests.service';
 function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
   const start = control.get('startDate')?.value;
   const end = control.get('endDate')?.value;
-  return start && end && start > end ? { dateRange: true } : null;
+  if (start && end && start > end) return { dateRange: true };
+  if (start && end && start.slice(0, 4) !== end.slice(0, 4)) return { crossYear: true };
+  return null;
 }
 
 @Component({

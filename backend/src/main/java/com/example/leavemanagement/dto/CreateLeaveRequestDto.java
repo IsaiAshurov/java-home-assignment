@@ -27,6 +27,12 @@ public class CreateLeaveRequestDto {
         return startDate == null || endDate == null || !endDate.isBefore(startDate);
     }
 
+    @JsonIgnore
+    @AssertTrue(message = "Leave request must start and end in the same year")
+    public boolean isSameYear() {
+        return startDate == null || endDate == null || startDate.getYear() == endDate.getYear();
+    }
+
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
 

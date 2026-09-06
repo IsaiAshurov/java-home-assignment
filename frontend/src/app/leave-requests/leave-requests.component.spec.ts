@@ -36,6 +36,17 @@ describe('LeaveRequestsComponent', () => {
     expect(component.form.hasError('dateRange')).toBeTrue();
   });
 
+  it('rejects dates in different years', () => {
+    component.form.setValue({
+      employeeId: 1,
+      type: 0,
+      startDate: '2025-12-30',
+      endDate: '2026-01-10'
+    });
+
+    expect(component.form.hasError('crossYear')).toBeTrue();
+  });
+
   it('shows an error when initial loading fails', () => {
     const failedFixture = TestBed.createComponent(LeaveRequestsComponent);
     failedFixture.detectChanges();

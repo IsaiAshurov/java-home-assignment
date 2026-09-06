@@ -43,6 +43,10 @@
     End date cannot be before start date.
   </small>
 
+  <small *ngIf="form.hasError('crossYear') && (form.controls.startDate.touched || form.controls.endDate.touched)">
+    Leave request must start and end in the same year.
+  </small>
+
   <button type="submit" [disabled]="submitting">{{ submitting ? 'Submitting...' : 'Create request' }}</button>
 </form>
 

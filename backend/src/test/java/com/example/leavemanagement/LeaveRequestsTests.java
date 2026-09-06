@@ -228,6 +228,21 @@ class LeaveRequestsTests {
     }
 
     @Test
+    void create_DatesInDifferentYears_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/leave-requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeId": 1,
+                                  "type": "VACATION",
+                                  "startDate": "2025-12-30",
+                                  "endDate": "2026-01-10"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void approve_ConcurrentRequests_DoesNotExceedQuota() throws Exception {
         Employee emp = saveEmployee("Concurrent Approvals", 20);
         LeaveRequest alreadyApproved = saveRequest(emp, 18, LeaveStatus.APPROVED);
