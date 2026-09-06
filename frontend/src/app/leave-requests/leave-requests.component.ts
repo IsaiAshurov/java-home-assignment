@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { finalize } from 'rxjs';
 import { Employee, LeaveRequest } from '../models/leave-request.model';
 
 function dateRangeValidator(control: AbstractControl): ValidationErrors | null {
@@ -26,6 +27,9 @@ export class LeaveRequestsComponent implements OnInit {
   submitting = false;
   formMessage = '';
   formError = '';
+  readonly approvingIds = new Set<number>();
+  readonly approvalMessages: Record<number, string> = {};
+  readonly approvalErrors: Record<number, string> = {};
 
   private apiUrl = 'http://localhost:5080/api/leave-requests';
   private readonly fb = inject(FormBuilder);
@@ -86,11 +90,33 @@ export class LeaveRequestsComponent implements OnInit {
 
   // Wired up by the candidate as part of the assignment.
   approve(id: number): void {
-    // TODO (candidate): call POST /api/leave-requests/{id}/approve
-    // and handle loading / error / success without a generic alert.
-    this.http.post<LeaveRequest>(this.apiUrl + '/' + id + '/approve', {}).subscribe(() => {
-      this.load();
-    });
+    if (this.approvingIds.has(id)) return;
+
+    this.approvingIds.add(id);
+    delete this.approvalMessages[id];
+    delete this.approvalErrors[id];
+
+    this.http.post<LeaveRequest>(`${this.apiUrl}/${id}/approve`, {})
+      .pipe(finalize(() => this.approvingIds.delete(id)))
+      .subscribe({
+        next: (approved) => {
+          const index = this.requests.findIndex((request) => request.id === id);
+          if (index !== -1) {
+            this.requests[index] = { ...approved, employee: approved.employee ?? this.requests[index].employee };
+          }
+          this.approvalMessages[id] = 'Request approved successfully.';
+        },
+        error: (error: HttpErrorResponse) => {
+          this.approvalErrors[id] = this.approvalErrorMessage(error.status);
+        }
+      });
+  }
+
+  private approvalErrorMessage(status: number): string {
+    if (status === 400) return 'Not enough vacation days.';
+    if (status === 404) return 'Request not found.';
+    if (status === 409) return 'Request already processed.';
+    return 'Please try again.';
   }
 
   typeLabel(type: number): string {

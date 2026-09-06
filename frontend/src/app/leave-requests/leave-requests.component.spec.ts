@@ -53,4 +53,35 @@ describe('LeaveRequestsComponent', () => {
 
     expect(component.requests[0].id).toBe(10);
   });
+
+  it('updates only the approved request without reloading the list', () => {
+    component.requests = [{
+      id: 7,
+      employeeId: 2,
+      type: 0,
+      startDate: '2026-07-01',
+      endDate: '2026-07-02',
+      status: 0,
+      days: 2
+    }];
+
+    component.approve(7);
+
+    const request = http.expectOne('http://localhost:5080/api/leave-requests/7/approve');
+    expect(request.request.method).toBe('POST');
+    request.flush({ ...component.requests[0], status: 1 });
+
+    expect(component.requests[0].status).toBe(1);
+  });
+
+  it('shows an approval error and clears loading', () => {
+    component.approve(8);
+    expect(component.approvingIds.has(8)).toBeTrue();
+
+    http.expectOne('http://localhost:5080/api/leave-requests/8/approve')
+      .flush('Leave request is already processed', { status: 409, statusText: 'Conflict' });
+
+    expect(component.approvalErrors[8]).toBe('Request already processed.');
+    expect(component.approvingIds.has(8)).toBeFalse();
+  });
 });
