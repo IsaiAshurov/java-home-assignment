@@ -7,6 +7,7 @@ import com.example.leavemanagement.model.LeaveStatus;
 import com.example.leavemanagement.model.LeaveType;
 import com.example.leavemanagement.repository.EmployeeRepository;
 import com.example.leavemanagement.repository.LeaveRequestRepository;
+import com.example.leavemanagement.service.LeaveRequestService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.http.ResponseEntity;
@@ -23,14 +24,17 @@ public class LeaveRequestsController {
 
     private final EmployeeRepository employeeRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final LeaveRequestService leaveRequestService;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public LeaveRequestsController(EmployeeRepository employeeRepository,
-                                   LeaveRequestRepository leaveRequestRepository) {
+                                   LeaveRequestRepository leaveRequestRepository,
+                                   LeaveRequestService leaveRequestService) {
         this.employeeRepository = employeeRepository;
         this.leaveRequestRepository = leaveRequestRepository;
+        this.leaveRequestService = leaveRequestService;
     }
 
     // GET /api/leave-requests
@@ -76,7 +80,7 @@ public class LeaveRequestsController {
                 .sum();
 
         // Make sure the request does not exceed the quota.
-        if (dto.getType() == LeaveType.VACATION && days > employee.getAnnualQuota()) {
+        if (dto.getType() == LeaveType.VACATION && used + days > employee.getAnnualQuota()) {
             return ResponseEntity.badRequest().body("Not enough vacation balance");
         }
 
@@ -91,5 +95,10 @@ public class LeaveRequestsController {
         leaveRequestRepository.save(request);
 
         return ResponseEntity.ok(request);
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<LeaveRequest> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(leaveRequestService.approve(id));
     }
 }
