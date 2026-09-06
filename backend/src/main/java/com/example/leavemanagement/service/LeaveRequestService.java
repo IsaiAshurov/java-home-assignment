@@ -1,5 +1,6 @@
 package com.example.leavemanagement.service;
 
+import com.example.leavemanagement.dto.CreateLeaveRequestDto;
 import com.example.leavemanagement.model.Employee;
 import com.example.leavemanagement.model.LeaveRequest;
 import com.example.leavemanagement.model.LeaveStatus;
@@ -11,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+
 @Service
 public class LeaveRequestService {
 
@@ -20,6 +24,34 @@ public class LeaveRequestService {
     public LeaveRequestService(LeaveRequestRepository leaveRequests, EmployeeRepository employees) {
         this.leaveRequests = leaveRequests;
         this.employees = employees;
+    }
+
+    public List<LeaveRequest> getAll() {
+        return leaveRequests.findAllByOrderByStartDateDesc();
+    }
+
+    public List<LeaveRequest> search(String name) {
+        return leaveRequests.findByEmployee_NameContainingIgnoreCase(name);
+    }
+
+    @Transactional
+    public LeaveRequest create(CreateLeaveRequestDto dto) {
+        Employee employee = employees.findById(dto.getEmployeeId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
+        int days = calculateDays(dto);
+
+        if (dto.getType() == LeaveType.VACATION && usedVacationDays(dto.getEmployeeId()) + days > employee.getAnnualQuota()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough vacation balance");
+        }
+
+        LeaveRequest request = new LeaveRequest();
+        request.setEmployeeId(dto.getEmployeeId());
+        request.setType(dto.getType());
+        request.setStartDate(dto.getStartDate());
+        request.setEndDate(dto.getEndDate());
+        request.setDays(days);
+        request.setStatus(LeaveStatus.PENDING);
+        return leaveRequests.save(request);
     }
 
     @Transactional
@@ -35,18 +67,24 @@ public class LeaveRequestService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employee not found"));
 
         if (request.getType() == LeaveType.VACATION) {
-            int used = leaveRequests
-                    .findByEmployeeIdAndTypeAndStatus(request.getEmployeeId(), LeaveType.VACATION, LeaveStatus.APPROVED)
-                    .stream()
-                    .mapToInt(LeaveRequest::getDays)
-                    .sum();
-
-            if (used + request.getDays() > employee.getAnnualQuota()) {
+            if (usedVacationDays(request.getEmployeeId()) + request.getDays() > employee.getAnnualQuota()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough vacation balance");
             }
         }
 
         request.setStatus(LeaveStatus.APPROVED);
         return leaveRequests.save(request);
+    }
+
+    private int calculateDays(CreateLeaveRequestDto dto) {
+        return (int) ChronoUnit.DAYS.between(dto.getStartDate(), dto.getEndDate()) + 1;
+    }
+
+    private int usedVacationDays(Long employeeId) {
+        return leaveRequests
+                .findByEmployeeIdAndTypeAndStatus(employeeId, LeaveType.VACATION, LeaveStatus.APPROVED)
+                .stream()
+                .mapToInt(LeaveRequest::getDays)
+                .sum();
     }
 }

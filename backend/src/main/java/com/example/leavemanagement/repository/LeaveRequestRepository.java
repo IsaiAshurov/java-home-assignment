@@ -15,6 +15,10 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
 
     List<LeaveRequest> findByEmployeeIdAndTypeAndStatus(Long employeeId, LeaveType type, LeaveStatus status);
 
+    List<LeaveRequest> findAllByOrderByStartDateDesc();
+
+    List<LeaveRequest> findByEmployee_NameContainingIgnoreCase(String name);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from LeaveRequest r where r.id = :id")
     Optional<LeaveRequest> findByIdForUpdate(Long id);

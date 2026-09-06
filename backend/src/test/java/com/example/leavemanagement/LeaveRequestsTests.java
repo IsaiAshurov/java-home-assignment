@@ -16,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -23,7 +24,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 // Runs against a real, throwaway PostgreSQL started by Testcontainers.
@@ -101,9 +104,9 @@ class LeaveRequestsTests {
         dto.setStartDate(LocalDate.of(2026, 3, 1));
         dto.setEndDate(LocalDate.of(2026, 3, 3));
 
-        ResponseEntity<?> result = controller.create(dto);
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> controller.create(dto));
 
-        assertTrue(result.getStatusCode().is4xxClientError());
+        assertTrue(exception.getStatusCode().is4xxClientError());
     }
 
     @Test
@@ -151,6 +154,13 @@ class LeaveRequestsTests {
 
         mockMvc.perform(post("/api/leave-requests/{id}/approve", pending.getId()))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void search_TreatsSqlMetacharactersAsPlainText() throws Exception {
+        mockMvc.perform(get("/api/leave-requests/search").param("name", "' OR 1=1 --"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
     }
 
     private Employee saveEmployee(String name, int quota) {
