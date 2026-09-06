@@ -8,10 +8,12 @@ import com.example.leavemanagement.model.LeaveStatus;
 import com.example.leavemanagement.model.LeaveType;
 import com.example.leavemanagement.repository.EmployeeRepository;
 import com.example.leavemanagement.repository.LeaveRequestRepository;
+import com.example.leavemanagement.service.LeaveRequestService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -22,6 +24,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -57,6 +64,9 @@ class LeaveRequestsTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private LeaveRequestService leaveRequestService;
 
     @Test
     void create_WithinQuota_Succeeds() {
@@ -161,6 +171,61 @@ class LeaveRequestsTests {
         mockMvc.perform(get("/api/leave-requests/search").param("name", "' OR 1=1 --"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void create_MissingRequiredFields_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/leave-requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void create_EndDateBeforeStartDate_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/leave-requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeId": 1,
+                                  "type": "VACATION",
+                                  "startDate": "2026-08-03",
+                                  "endDate": "2026-08-01"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void approve_ConcurrentRequests_DoesNotExceedQuota() throws Exception {
+        Employee emp = saveEmployee("Concurrent Approvals", 20);
+        saveRequest(emp, 18, LeaveStatus.APPROVED);
+        LeaveRequest first = saveRequest(emp, 2, LeaveStatus.PENDING);
+        LeaveRequest second = saveRequest(emp, 2, LeaveStatus.PENDING);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Integer> firstStatus = executor.submit(() -> approveAfter(start, first.getId()));
+            Future<Integer> secondStatus = executor.submit(() -> approveAfter(start, second.getId()));
+            start.countDown();
+
+            List<Integer> statuses = List.of(firstStatus.get(), secondStatus.get());
+            assertEquals(1, statuses.stream().filter(status -> status == 200).count());
+            assertEquals(1, statuses.stream().filter(status -> status == 400).count());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private int approveAfter(CountDownLatch start, Long requestId) throws InterruptedException {
+        start.await();
+        try {
+            leaveRequestService.approve(requestId);
+            return 200;
+        } catch (ResponseStatusException exception) {
+            return exception.getStatusCode().value();
+        }
     }
 
     private Employee saveEmployee(String name, int quota) {

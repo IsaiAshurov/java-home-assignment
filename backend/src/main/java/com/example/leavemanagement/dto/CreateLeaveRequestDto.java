@@ -1,15 +1,31 @@
 package com.example.leavemanagement.dto;
 
 import com.example.leavemanagement.model.LeaveType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 // Incoming payload for creating a leave request.
 public class CreateLeaveRequestDto {
 
+    @NotNull
     private Long employeeId;
+
+    @NotNull
     private LeaveType type;
+
+    @NotNull
     private LocalDate startDate;
+
+    @NotNull
     private LocalDate endDate;
+
+    @JsonIgnore
+    @AssertTrue(message = "End date cannot be before start date")
+    public boolean isDateRangeValid() {
+        return startDate == null || endDate == null || !endDate.isBefore(startDate);
+    }
 
     public Long getEmployeeId() { return employeeId; }
     public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }

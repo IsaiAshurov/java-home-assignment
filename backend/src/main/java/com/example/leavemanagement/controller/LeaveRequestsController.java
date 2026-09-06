@@ -3,6 +3,7 @@ package com.example.leavemanagement.controller;
 import com.example.leavemanagement.dto.CreateLeaveRequestDto;
 import com.example.leavemanagement.model.LeaveRequest;
 import com.example.leavemanagement.service.LeaveRequestService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,7 +36,7 @@ public class LeaveRequestsController {
 
     // POST /api/leave-requests
     @PostMapping
-    public ResponseEntity<LeaveRequest> create(@RequestBody CreateLeaveRequestDto dto) {
+    public ResponseEntity<LeaveRequest> create(@Valid @RequestBody CreateLeaveRequestDto dto) {
         return ResponseEntity.ok(leaveRequestService.create(dto));
     }
 
